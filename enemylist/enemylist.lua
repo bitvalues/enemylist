@@ -1,5 +1,5 @@
 -- dependencies
-local tracker = require('tracker')
+local ui = require('ui')
 
 -- addon setup
 _addon.name = 'enemylist'
@@ -8,4 +8,4 @@ _addon.version = 1.0
 _addon.command = 'elist'
 
 -- initialize everything
-tracker:initialize()
+ui:initialize()

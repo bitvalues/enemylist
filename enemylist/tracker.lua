@@ -1,4 +1,5 @@
 local tracker = {
+  frameCount = 0,
   mobs = {
     -- 1345123 = { id, name, hpp }
   }
@@ -10,12 +11,30 @@ function tracker:initialize()
   end)
 
   windower.register_event('prerender', function()
-    tracker:updateTrackedMobsHPP()
+    if tracker.frameCount % 10 == 0 then
+      tracker:updateTrackedMobsHPP()
+    end
+
+    tracker.frameCount = tracker.frameCount + 1
+  end)
+
+  windower.register_event('incoming chunk', function(id, data, modified, isInjected, isBlocked)
+    if isInjected then
+      return
+    end
+
+    if id == 0xB then
+      tracker:clearTrackedMobs()
+    end
   end)
 end
 
 function tracker:getTrackedMobs()
   return tracker.mobs
+end
+
+function tracker:clearTrackedMobs()
+  tracker.mobs = {}
 end
 
 function tracker:handleAction(action)
@@ -29,7 +48,11 @@ function tracker:handleAction(action)
   end
 
   if actor.in_party or actor.in_alliance then
-    -- player -> something else
+    -- player -> mob
+    if tracker:isFinishAction(action.category) == false then
+      return
+    end
+
     for idx, target in pairs(action.targets) do
       local target = windower.ffxi.get_mob_by_id(target.id)
 
@@ -49,9 +72,29 @@ function tracker:handleAction(action)
   end
 end
 
+function tracker:isFinishAction(categoryID)
+  -- https://github.com/Windower/Lua/wiki/Action-Event
+
+  if categoryID == 1 then -- melee attack
+    return true
+  elseif categoryID == 2 then -- range attack
+    return true
+  elseif categoryID == 3 then -- weapon skill
+    return true
+  elseif categoryID == 4 then -- spell cast
+    return true
+  elseif categoryID == 11 then -- tp move
+    return true
+  elseif categoryID == 13 then -- pet ability
+    return true
+  end
+
+  return false
+end
+
 function tracker:trackMob(id, name, hpp)
   if tracker.mobs[id] == nil then
-    print('Tracking new mob: ' .. name)
+    -- new mob
   end
 
   tracker.mobs[id] = {
@@ -76,10 +119,13 @@ function tracker:updateTrackedMobsHPP()
   for id, data in pairs(tracker:getTrackedMobs()) do
     local mob = windower.ffxi.get_mob_by_id(id)
 
-    tracker.mobs[id].hpp = mob.hpp
-    if mob.hpp == 0 then
-      print('Untracking mob: ' .. mob.name)
-      tracker:untrackMob(id)
+    if mob ~= nil then
+      tracker.mobs[id].hpp = mob.hpp
+
+      if mob.hpp == 0 then
+        -- mob died
+        tracker:untrackMob(id)
+      end
     end
   end
 end
