@@ -189,7 +189,7 @@ function tracker:handleMobAction(action, actor)
   for idx, data in pairs(action.targets) do
     local target = windower.ffxi.get_mob_by_id(data.id)
 
-    if tracker:isMember(target) or tracker:isPlayerPet(target) then
+    if tracker:isMember(target) then
       tracker:trackMob(actor.id, actor.name, actor.hpp, 'handleMobAction')
     end
   end
