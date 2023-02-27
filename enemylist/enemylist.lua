@@ -1,6 +1,7 @@
 -- dependencies
+local settings = require('settings')
+local commands = require('commands')
 local ui = require('ui')
-local uiDebug = require('ui/debug')
 
 -- addon setup
 _addon.name = 'enemylist'
@@ -8,6 +9,7 @@ _addon.author = 'Bitvalues'
 _addon.version = 1.0
 _addon.command = 'elist'
 
--- initialize everything
+-- now, initialize everything
+settings:initialize()
+commands:initialize()
 ui:initialize()
--- uiDebug:initialize()
