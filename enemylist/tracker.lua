@@ -13,7 +13,7 @@ function tracker:initialize()
 
   -- handle updating the tracked mobs hpp
   windower.register_event('prerender', function()
-    if tracker.frameCount % 30 == 0 then
+    if tracker.frameCount % 10 == 0 then
       tracker:updateMobs()
       tracker.frameCount = 0
     end

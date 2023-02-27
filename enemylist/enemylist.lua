@@ -9,5 +9,5 @@ _addon.version = 1.0
 _addon.command = 'elist'
 
 -- initialize everything
--- ui:initialize()
-uiDebug:initialize()
+ui:initialize()
+-- uiDebug:initialize()
