@@ -33,7 +33,7 @@ end
 
 function commands:showHelp()
   print('enemylist help:')
-  print('    //enemylist toggle - toggles the ability to drag the enemylist')
+  print('    //elist toggle - toggles the ability to drag the enemylist')
 end
 
 return commands
