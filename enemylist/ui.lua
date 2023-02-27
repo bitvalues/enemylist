@@ -1,42 +1,19 @@
-local texts = require('texts')
+-- dependencies
 local tracker = require('tracker')
+local bars = require('ui/bars')
 
-local boxSettings = {
-  pos = {
+-- variables
+local ui = {
+  frameCount = 0,
+  settings = {
     x = 400,
     y = 400,
   },
-  bg = {
-      alpha = 255,
-      red = 0,
-      green = 0,
-      blue = 0,
-      visible = true
-  },
-  flags = {
-      right = false,
-      bottom = false,
-      bold = true,
-      italic = false
-  },
-  padding = 5,
-  text = {
-      size = 11,
-      font = 'Segoe UI',
-  }
-}
-local settings = {}
-
-local ui = {
-  frameCount = 0,
-  box = nil,
+  bars = {},
 }
 
 function ui:initialize()
-  tracker:initialize()
-
-  ui.box = texts.new('${currentString}', boxSettings, settings)
-  ui.box.currentString = 'Current Targets:'
+  -- tracker:initialize()
 
   windower.register_event('prerender', function()
     ui:handlePrerender()
@@ -46,20 +23,32 @@ end
 function ui:handlePrerender()
   if ui.frameCount % 30 == 0 then
     ui:update()
+    ui.frameCount = 0
   end
 
   ui.frameCount = ui.frameCount + 1
 end
 
 function ui:update()
-  local str = 'Current Targets:\n'
+  -- -- first, create new bar elements
+  -- for id, data in pairs(tracker:getTrackedMobs()) do
+  --   if ui.bars[id] == nil then
+  --     -- ui.bars[id] = bars.new(data)
+  --   end
+  -- end
 
-  for id, data in pairs(tracker:getTrackedMobs()) do
-    str = str .. '[' .. id .. '] ' .. data.name .. ' (' .. data.hpp .. '%)\n'
-  end
+  -- -- update bars
+  -- for id, bar in pairs(self.bars) do
+  --   --
 
-  ui.box.currentString = str
-  ui.box:show()
+  --   if bar:isVisible() ~= true then
+  --     bar:destroy()
+  --   end
+  -- end
+end
+
+function ui:removeLeftoverBars()
+  --
 end
 
 return ui

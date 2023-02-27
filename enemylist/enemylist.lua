@@ -1,5 +1,6 @@
 -- dependencies
 local ui = require('ui')
+local uiDebug = require('ui/debug')
 
 -- addon setup
 _addon.name = 'enemylist'
@@ -8,4 +9,5 @@ _addon.version = 1.0
 _addon.command = 'elist'
 
 -- initialize everything
-ui:initialize()
+-- ui:initialize()
+uiDebug:initialize()
