@@ -21,6 +21,18 @@ function ui:initialize()
   windower.register_event('prerender', function()
     ui:handlePrerender()
   end)
+
+  -- handle zoning
+  windower.register_event('incoming chunk', function(id, data, modified, isInjected, isBlocked)
+    if isInjected then
+      return
+    end
+
+    -- handle zoning somewhere else
+    if id == 0xB then
+      ui.containers = {}
+    end
+  end)
 end
 
 function ui:handlePrerender()
@@ -86,30 +98,30 @@ function ui:update()
 
   -- next, update all of the container positions
   for id, container in pairs(ui.containers) do
-    if mobs[id] == nil then
-      -- mob is no longer tracked, remove the container
-      container.background:destroy()
-      container.foreground:destroy()
-      container.name:destroy()
-      container.hpp:destroy()
-    else
-      -- mob is still being tracked
-      local mobHPP = mobs[id].hpp
+    if container ~= nil then
+      if mobs[id] == nil then
+        -- mob is no longer tracked, remove the container
+        container.background:destroy()
+        container.foreground:destroy()
+        container.name:destroy()
+        container.hpp:destroy()
+        ui.containers[id] = nil
+      else
+        -- mob is still being tracked
+        local mobHPP = mobs[id].hpp
 
-      containers[id] = container
-      container.background:update(x, y, containerHeight, barWidth)
-      container.foreground:update(x + barPadding, y + barPadding, containerHeight - (barPadding * 2), ((mobHPP / 100) * (barWidth - barPadding * 2)))
-      container.name:pos(x - barPadding - container.name:extents(), y + (barPadding / 2))
-      container.name:show()
-      container.hpp:pos(x + barWidth + barPadding, y + (barPadding / 2))
-      container.hpp:show()
-      container.hpp.value = mobHPP
+        container.background:update(x, y, containerHeight, barWidth)
+        container.foreground:update(x + barPadding, y + barPadding, containerHeight - (barPadding * 2), ((mobHPP / 100) * (barWidth - barPadding * 2)))
+        container.name:pos(x - barPadding - container.name:extents(), y + (barPadding / 2))
+        container.name:show()
+        container.hpp:pos(x + barWidth + barPadding, y + (barPadding / 2))
+        container.hpp:show()
+        container.hpp.value = mobHPP
 
-      y = y + containerHeight + containerSpacing
+        y = y + containerHeight + containerSpacing
+      end
     end
   end
-
-  ui.containers = containers
 end
 
 return ui
