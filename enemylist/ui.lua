@@ -30,6 +30,10 @@ function ui:initialize()
 
     -- handle zoning somewhere else
     if id == 0xB then
+      for id, container in pairs(ui.containers) do
+        ui:destroyContainer(container)
+      end
+
       ui.containers = {}
     end
   end)
@@ -83,7 +87,6 @@ function ui:update()
   local barPadding = options.bar.padding
   local x = options.position.x + 24
   local y = options.position.y + 24
-  local containers = {}
 
   -- display the placeholder if we're supposed to
   if options.locked == false then
@@ -101,10 +104,7 @@ function ui:update()
     if container ~= nil then
       if mobs[id] == nil then
         -- mob is no longer tracked, remove the container
-        container.background:destroy()
-        container.foreground:destroy()
-        container.name:destroy()
-        container.hpp:destroy()
+        ui:destroyContainer(container)
         ui.containers[id] = nil
       else
         -- mob is still being tracked
@@ -122,6 +122,17 @@ function ui:update()
       end
     end
   end
+end
+
+function ui:destroyContainer(container)
+  if container == nil then
+    return
+  end
+
+  container.background:destroy()
+  container.foreground:destroy()
+  container.name:destroy()
+  container.hpp:destroy()
 end
 
 return ui
