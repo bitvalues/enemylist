@@ -1,138 +1,106 @@
--- dependencies
-local texts = require('texts')
-local tracker = require('tracker')
-local bars = require('ui/bars')
+local events = require('events')
 local settings = require('settings')
+local barElements = require('bar-elements')
+local texts = require('texts')
+require('tables')
 
--- variables
-local backgroundImagePath = windower.addon_path .. 'images/background.png'
-local foregroundImagePath = windower.addon_path .. 'images/foreground.png'
 local ui = {
-  frameCount = 0,
-  containers = {},
-  placeholder = nil,
+  _frameCount = 0,
+  _dragMeText = texts.new('    Drag Me    '),
+  _bars = T{},
 }
 
-function ui:initialize()
-  tracker:initialize()
-  ui.placeholder = texts.new('                Drag Me                ')
-  ui.placeholder:pos(settings:get().position.x, settings:get().position.y)
+function ui.initialize()
+  ui._dragMeText:pos(settings.get('position.x'), settings.get('position.y'))
 
-  windower.register_event('prerender', function()
-    ui:handlePrerender()
-  end)
-
-  -- handle zoning
-  windower.register_event('incoming chunk', function(id, data, modified, isInjected, isBlocked)
-    if isInjected then
-      return
-    end
-
-    -- handle zoning somewhere else
-    if id == 0xB then
-      for id, container in pairs(ui.containers) do
-        ui:destroyContainer(container)
-      end
-
-      ui.containers = {}
-    end
-  end)
+  windower.register_event('prerender', ui.handlePrerender)
+  events.subscribe('mob.track', ui.addMobBar)
+  events.subscribe('mob.untrack', ui.removeMobBar)
+  events.subscribe('mobs.cleared', ui.clearBars)
+  events.subscribe('settings.updated', ui.handleSettingsUpdate)
 end
 
-function ui:handlePrerender()
-  if ui.frameCount % 10 == 0 then
-    ui:update()
-    ui.frameCount = 0
+function ui.handlePrerender()
+  if ui._frameCount % 2 == 0 then
+    ui.update()
+    ui._frameCount = 0
   end
 
-  ui.frameCount = ui.frameCount + 1
+  ui._frameCount = ui._frameCount + 1
 end
 
-function ui:update()
-  local mobs = tracker:getTrackedMobs()
-  local options = settings:get()
+function ui.update()
+  local x, y = ui._dragMeText:pos()
+  local width, height = ui._dragMeText:extents()
 
-  -- create any new containers that need to be added
-  for id, data in pairs(mobs) do
-    if ui.containers[id] == nil then
-      -- setup the name
-      local name = texts.new(data.name)
-      name:bg_visible(false)
-      name:stroke_color(options.text.stroke.red, options.text.stroke.green, options.text.stroke.blue)
-      name:stroke_width(options.text.stroke.width)
-
-      -- setup the hpp
-      local hpp = texts.new('${value}%')
-      hpp:bg_visible(false)
-      hpp:stroke_color(options.text.stroke.red, options.text.stroke.green, options.text.stroke.blue)
-      hpp:stroke_width(options.text.stroke.width)
-
-      -- setup the bars
-      ui.containers[id] = {
-        background = bars:create(backgroundImagePath),
-        foreground = bars:create(foregroundImagePath),
-        name = name,
-        hpp = hpp,
-      }
-    end
+  if (x ~= settings.get('position.x')) or (y ~= settings.get('position.y')) then
+    settings.setPosition(x, y)
   end
 
-  -- sort the bars
-  table.sort(ui.containers)
+  y = y + height + settings.get('bars.spacing')
 
-  -- cache some variables outside of for loop
-  local containerHeight = options.container.height
-  local containerSpacing = options.container.spacing
-  local barWidth = options.bar.width
-  local barPadding = options.bar.padding
-  local x = options.position.x + 24
-  local y = options.position.y + 24
+  local count = 0
+  for mobID, bar in pairs(ui._bars) do
+    if bar then
+      local barSpacing = settings.get('bars.spacing') + settings.get('bars.height') + (settings.get('bars.padding') * 2)
 
-  -- display the placeholder if we're supposed to
-  if options.locked == false then
-    ui.placeholder:show()
+      bar.pos(x, y + (barSpacing * count))
+      bar.update()
+      count = count + 1
+    end
+  end
+end
+
+function ui.addMobBar(id, name, hpp)
+  local x = settings.get('position.x')
+  local y = settings.get('position.y')
+  local barSpacing = settings.get('bars.spacing') + settings.get('bars.height') + (settings.get('bars.padding') * 2)
+
+  if not ui._bars[id] then
+    ui._bars[id] = barElements.new(id, x, y + (barSpacing * ui._bars:length()), hpp, name)
   else
-    ui.placeholder:hide()
-  end
-
-  -- save the coordinates of the placeholder
-  local placeholderX, placeholderY = ui.placeholder:pos()
-  settings:updatePosition(placeholderX, placeholderY)
-
-  -- next, update all of the container positions
-  for id, container in pairs(ui.containers) do
-    if container ~= nil then
-      if mobs[id] == nil then
-        -- mob is no longer tracked, remove the container
-        ui:destroyContainer(container)
-        ui.containers[id] = nil
-      else
-        -- mob is still being tracked
-        local mobHPP = mobs[id].hpp
-
-        container.background:update(x, y, containerHeight, barWidth)
-        container.foreground:update(x + barPadding, y + barPadding, containerHeight - (barPadding * 2), ((mobHPP / 100) * (barWidth - barPadding * 2)))
-        container.name:pos(x - barPadding - container.name:extents(), y + (barPadding / 2))
-        container.name:show()
-        container.hpp:pos(x + barWidth + barPadding, y + (barPadding / 2))
-        container.hpp:show()
-        container.hpp.value = mobHPP
-
-        y = y + containerHeight + containerSpacing
-      end
-    end
+    ui._bars[id].setPercent(hpp)
   end
 end
 
-function ui:destroyContainer(container)
-  if container == nil then
+function ui.removeMobBar(id)
+  if not ui._bars[id] then
     return
   end
 
-  container.background:destroy()
-  container.foreground:destroy()
-  container.name:destroy()
-  container.hpp:destroy()
+  local x = settings.get('position.x')
+  local y = settings.get('position.y')
+  local barSpacing = settings.get('bars.spacing') + settings.get('bars.height') + (settings.get('bars.padding') * 2)
+  local copy = T{}
+
+  for mobID, bar in pairs(ui._bars) do
+    if id ~= mobID then
+      copy[mobID] = bar
+      bar.pos(x, y + (barSpacing * (copy:length() - 1)))
+    else
+      bar.destroy()
+    end
+  end
+
+  ui._bars = copy
+end
+
+function ui.clearBars()
+  for id, bar in pairs(ui._bars) do
+    bar.destroy()
+  end
+
+  ui._bars = T{}
+end
+
+function ui.handleSettingsUpdate(key, value)
+  if key == 'locked' then
+    if value == true then
+      ui._dragMeText:show()
+    else
+      ui._dragMeText:hide()
+    end
+  end
 end
 
 return ui

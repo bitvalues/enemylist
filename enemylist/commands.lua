@@ -1,37 +1,31 @@
--- dependencies
 local settings = require('settings')
 
--- variables
 local commands = {}
 
-function commands:initialize()
-  windower.register_event('addon command', function(...)
-    commands:process(...)
-  end)
+function commands.initialize()
+  windower.register_event('addon command', commands.process)
 end
 
-function commands:process(...)
+function commands.process(...)
   local cmds = {...}
   local firstCommand = cmds[1]
 
-  if firstCommand ~= nil then
+  if firstCommand then
     firstCommand = firstCommand:lower()
   end
 
   if firstCommand == 'toggle' then
-    if settings:get().locked then
-      print('enemylist is now: unlocked')
-      settings:unlock()
+    if settings.get('locked') == true then
+      settings.setLocked(false)
     else
-      print('enemylist is now: locked')
-      settings:lock()
+      settings.setLocked(true)
     end
   else
-    commands:showHelp()
+    commands.showHelp()
   end
 end
 
-function commands:showHelp()
+function commands.showHelp()
   print('enemylist help:')
   print('    //elist toggle - toggles the ability to drag the enemylist')
 end

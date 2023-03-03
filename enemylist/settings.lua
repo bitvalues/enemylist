@@ -1,74 +1,122 @@
--- dependencies
+local events = require('events')
 local config = require('config')
+require('strings')
 
--- variables
 local settings = {
-  data = nil,
+  _storage = nil,
 }
 
-function settings:initialize()
-  settings.data = config.load('data\\settings.xml', settings:defaults())
-
-  config.register(settings.data, function()
-    settings:onInitialize()
-  end)
+function settings.initialize()
+  settings._storage = config.load('data\\settings.xml', settings.getDefaultSettings())
+  config.register(settings._storage, settings.onInitialize)
 end
 
-function settings:defaults()
+function settings.getDefaultSettings()
   return {
-    locked = true,
+    locked = false,
     position = {
       x = 400,
       y = 400,
     },
-    container = {
-      height = 24,
-      spacing = 4,
-    },
-    bar = {
-      padding = 4,
+    bars = {
+      fontSize = 12,
       width = 150,
-    },
-    text = {
-      stroke = {
-        width = 2,
-        red = 0,
-        green = 0,
-        blue = 0,
+      height = 20,
+      padding = 4,
+      spacing = 4,
+      boxBackground = {
+        color = {
+          red = 0,
+          green = 0,
+          blue = 0,
+        },
+      },
+      barBackground = {
+        color = {
+          red = 127,
+          green = 0,
+          blue = 0,
+        },
+        affected = {
+          color = {
+            red = 64,
+            green = 64,
+            blue = 0,
+          },
+        }
+      },
+      barForeground = {
+        color = {
+          red = 255,
+          green = 0,
+          blue = 0,
+        },
+        affected = {
+          color = {
+            red = 127,
+            green = 127,
+            blue = 0,
+          },
+        }
+      },
+      mobText = {
+        stroke = {
+          width = 2,
+          color = {
+            red = 0,
+            green = 0,
+            blue = 0,
+          },
+        },
+      },
+      effects = {
+        size = 24,
+        spacing = 4,
       },
     },
   }
 end
 
-function settings:get()
-  return settings.data
+function settings.onInitialize()
+  -- no operation
 end
 
-function settings:save(data)
-  settings.data = data
-  config.save(settings.data)
-end
+function settings.get(key)
+  local parts = key:split('.')
+  local value = settings._storage
 
-function settings:onInitialize()
-  -- no-op for now
-end
-
-function settings:lock()
-  settings.data.locked = true
-  config.save(settings.data)
-end
-
-function settings:unlock()
-  settings.data.locked = false
-  config.save(settings.data)
-end
-
-function settings:updatePosition(x, y)
-  if (x ~= settings.data.position.x) or (y ~= settings.data.position.y) then
-    settings.data.position.x = x
-    settings.data.position.y = y
-    config.save(settings.data)
+  if value == nil then
+    return nil
   end
+
+  for part in parts:it() do
+    if not value[part] then
+      return nil
+    else
+      value = value[part]
+    end
+  end
+
+  return value
+end
+
+function settings.setPosition(x, y)
+  settings._storage.position.x = x
+  settings._storage.position.y = y
+
+  config.save(settings._storage, 'all')
+end
+
+function settings.setLocked(value)
+  if value == true then
+    settings._storage.locked = true
+  else
+    value = false
+    settings._storage.locked = value
+  end
+
+  config.save(settings._storage, 'all')
+  events.publish('settings.updated', 'locked', value)
 end
 
 return settings

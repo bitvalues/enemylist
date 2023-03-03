@@ -1,201 +1,138 @@
+local events = require('events')
+require('tables')
+require('sets')
+require('pack')
+
+local CHUNK_ID_LOGIN_ZONE = 0x0A
+local CHUNK_ID_LOGOUT_ZONE = 0x0B
+local CHUNK_ID_ACTION = 0x28
+local CHUNK_ID_ACTION_MESSAGE = 0x29
+
 local tracker = {
-  frameCount = 0,
-  mobs = {
-    -- 1345123 = { id, name, hpp }
+  _frameCount = 0,
+  _trackedMobs = T{
+    -- 1345123 = { name, hpp },
+    -- 1345124 = { name, hpp },
   },
 }
 
-function tracker:initialize()
-  -- listen to action events that happen
-  windower.register_event('action', function(action)
-    tracker:handleActionEvent(action)
-  end)
-
-  -- handle updating the tracked mobs hpp
-  windower.register_event('prerender', function()
-    if tracker.frameCount % 10 == 0 then
-      tracker:updateMobs()
-      tracker.frameCount = 0
-    end
-
-    tracker.frameCount = tracker.frameCount + 1
-  end)
-
-  -- handle zoning
-  windower.register_event('incoming chunk', function(id, data, modified, isInjected, isBlocked)
-    if isInjected then
-      return
-    end
-
-    -- handle zoning somewhere else
-    if id == 0xB then
-      tracker:clearTrackedMobs()
-    end
-  end)
+function tracker.initialize()
+  windower.register_event('incoming chunk', tracker.onIncomingChunk)
+  windower.register_event('prerender', tracker.onPrerender)
 end
 
-function tracker:getTrackedMobs()
-  return tracker.mobs
+function tracker.onPrerender()
+  if tracker._frameCount % 10 == 0 then
+    tracker:updateAllTrackedMobsHPP()
+    tracker._frameCount = 0
+  end
+
+  tracker._frameCount = tracker._frameCount + 1
 end
 
-function tracker:clearTrackedMobs()
-  tracker.mobs = {}
+function tracker.onIncomingChunk(id, data)
+  if id == CHUNK_ID_LOGOUT_ZONE then
+    tracker._trackedMobs = T{}
+    events.publish('mobs.cleared', tracker._trackedMobs:length())
+  elseif id == CHUNK_ID_ACTION then
+    tracker.handleActionPacket(windower.packets.parse_action(data))
+  elseif id == CHUNK_ID_ACTION_MESSAGE then
+    tracker.handleActionMessagePacket({
+      targetID = data:unpack('I',0x09),
+      paramID = data:unpack('I',0x0D),
+      messageID = data:unpack('H',0x19)%32768,
+    })
+  end
 end
 
-function tracker:trackMob(id, name, hpp, caller)
-  tracker.mobs[id] = {
-    name = name,
-    hpp = hpp
-  }
-end
-
-function tracker:untrackMob(id)
-  tracker.mobs[id] = nil
-end
-
-function tracker:updateMobs()
-  for id, data in pairs(tracker:getTrackedMobs()) do
+function tracker.updateAllTrackedMobsHPP()
+  for id, data in pairs(tracker._trackedMobs) do
     local mob = windower.ffxi.get_mob_by_id(id)
 
     if mob ~= nil then
-      tracker.mobs[id].hpp = mob.hpp
-
-      if mob.hpp <= 0 then
-        tracker:untrackMob(id)
-      end
+      tracker.trackMob(id, mob.name, mob.hpp)
     end
   end
 end
 
-function tracker:handleActionEvent(action)
-  -- action keys:
-  --   targets(id, actions, action_count) category actor_id
-  --   recast unknown target_count param
-  -- actor keys:
-  --   valid_target index claim_id race
-  --   hpp facing is_npc in_alliance
-  --   in_party charmed models entity_type
-  --   target_index animation_speed spawn_type
-  --   distance z x y status name model_scale
-  --   heading model_size id movement_speed
-
+function tracker.handleActionPacket(action)
+  -- make sure there was a valid actor first
   local actor = windower.ffxi.get_mob_by_id(action.actor_id)
-  if (actor == nil) or (actor.valid_target ~= true) then
+  if (not actor) or (not actor.valid_target) then
     return
-  elseif tracker:isFinishAction(action.category) ~= true then
+  elseif tracker.isFinishCategoryID(action.category) ~= true then
     return
   end
 
-  if tracker:isMember(actor) then
-    tracker:handleMemberAction(action, actor)
-  elseif tracker:isPlayerPet(actor) then
-    tracker:handlePlayerPetAction(action, actor)
-  elseif tracker:isMob(actor) then
-    tracker:handleMobAction(action, actor)
+  -- determine what type of actor and handle it accordingly
+  if tracker.isMember(actor) then
+    tracker.handleMemberAction(action, actor)
+  elseif tracker.isPlayerPet(actor) then
+    tracker.handlePlayerPetAction(action, actor)
+  elseif tracker.isMob(actor) then
+    tracker.handleMobAction(action, actor)
   end
 end
 
-function tracker:isPlayerOutsideParty(data)
-  if data == nil then
-    return false
-  end
+function tracker.getTrackedMobs()
+  return tracker._trackedMobs
+end
 
-  if data.spawn_type == 1 then
+function tracker.isPlayerOutsideParty(data)
+  if not data then
+    return false
+  elseif data.spawn_type == 1 then
     return true
   end
 
   return false
 end
 
-function tracker:isPartyMember(data)
-  if data == nil then
+function tracker.isPartyMember(data)
+  if not data then
     return false
-  end
-
-  if data.spawn_type == 13 then
+  elseif data.spawn_type == 13 then
     return true
   end
 
   return false
 end
 
-function tracker:isAllianceMember(data)
-  if data == nil then
+function tracker.isAllianceMember(data)
+  if not data then
     return false
-  end
-
-  if data.spawn_type == 9 then
+  elseif data.spawn_type == 9 then
     return true
   end
 
   return false
 end
 
-function tracker:isMember(data)
-  return tracker:isPartyMember(data) or tracker:isAllianceMember(data)
+function tracker.isMember(data)
+  return tracker.isPartyMember(data) or tracker.isAllianceMember(data)
 end
 
 function tracker:isPlayerPet(data)
-  if data == nil then
+  if not data then
     return false
-  end
-
-  if data.spawn_type == 2 then
+  elseif data.spawn_type == 2 then
     return true
   end
 
   return false
 end
 
-function tracker:isMob(data)
-  if data == nil then
+function tracker.isMob(data)
+  if not data then
     return false
-  end
-
-  if data.spawn_type == 16 then
+  elseif data.spawn_type == 16 then
     return true
   end
 
   return false
 end
 
-function tracker:handleMemberAction(action, actor)
-  -- another player took an action, we want to make sure the action was
-  -- against an enemy mob only
-  for idx, data in pairs(action.targets) do
-    local target = windower.ffxi.get_mob_by_id(data.id)
-
-    if tracker:isMob(target) then
-      tracker:trackMob(target.id, target.name, target.hpp, 'handleMemberAction')
-    end
-  end
-end
-
-function tracker:handlePlayerPetAction(action, actor)
-  -- a player pet took an action, we want to make sure the action was
-  -- against an enemy mob only
-  for idx, data in pairs(action.targets) do
-    local target = windower.ffxi.get_mob_by_id(data.id)
-
-    if tracker:isMob(data) then
-      tracker:trackMob(target.id, target.name, target.hpp, 'handlePlayerPetAction')
-    end
-  end
-end
-
-function tracker:handleMobAction(action, actor)
-  -- a mob took an action, we want to make sure the action was
-  -- against a player or a player pet
-  for idx, data in pairs(action.targets) do
-    local target = windower.ffxi.get_mob_by_id(data.id)
-
-    if tracker:isMember(target) then
-      tracker:trackMob(actor.id, actor.name, actor.hpp, 'handleMobAction')
-    end
-  end
-end
-
-function tracker:isFinishAction(categoryID)
+function tracker.isFinishCategoryID(categoryID)
   -- https://github.com/Windower/Lua/wiki/Action-Event
   if categoryID == 1 then -- melee attack
     return true
@@ -216,6 +153,74 @@ function tracker:isFinishAction(categoryID)
   end
 
   return false
+end
+
+function tracker.handleMemberAction(action, actor)
+  -- another player took an action, we want to make sure the action was
+  -- against an enemy mob only
+  for idx, data in pairs(action.targets) do
+    local target = windower.ffxi.get_mob_by_id(data.id)
+
+    if tracker.isMob(target) then
+      tracker.trackMob(target.id, target.name, target.hpp)
+    end
+  end
+end
+
+function tracker.handlePlayerPetAction(action, actor)
+  -- a player pet took an action, we want to make sure the action was
+  -- against an enemy mob only
+  for idx, data in pairs(action.targets) do
+    local target = windower.ffxi.get_mob_by_id(data.id)
+
+    if tracker.isMob(data) then
+      tracker.trackMob(target.id, target.name, target.hpp)
+    end
+  end
+end
+
+function tracker.handleMobAction(action, actor)
+  -- a mob took an action, we want to make sure the action was
+  -- against a player or a player pet
+  for idx, data in pairs(action.targets) do
+    local target = windower.ffxi.get_mob_by_id(data.id)
+
+    if tracker.isMember(target) then
+      tracker.trackMob(actor.id, actor.name, actor.hpp)
+    end
+  end
+end
+
+function tracker.trackMob(id, name, hpp)
+  if not tracker._trackedMobs[id] then
+    tracker._trackedMobs[id] = {}
+  end
+
+  local cachedHPP = tracker._trackedMobs[id].hpp
+  local cachedName = tracker._trackedMobs[id].name
+
+  tracker._trackedMobs[id].name = name
+  tracker._trackedMobs[id].hpp = hpp
+
+  if (cachedName ~= name) or (cachedHPP ~= hpp) then
+    events.publish('mob.track', id, name, hpp)
+  end
+end
+
+function tracker.untrackMob(id)
+  if tracker._trackedMobs[id] ~= nil then
+    local mob = tracker._trackedMobs[id]
+    tracker._trackedMobs[id] = nil
+
+    events.publish('mob.untrack', id, mob.name)
+  end
+end
+
+function tracker.handleActionMessagePacket(actionMessage)
+  if S{6, 20, 113, 406, 605, 646}:contains(actionMessage.messageID) then
+    -- mob died
+    tracker.untrackMob(actionMessage.targetID)
+  end
 end
 
 return tracker
