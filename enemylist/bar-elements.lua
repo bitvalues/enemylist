@@ -119,13 +119,17 @@ function barElements.new(mobID, x, y, percent, mobName)
     barElement._images.barBackground:pos(x + padding, y + padding)
     barElement._images.barForeground:pos(x + padding, y + padding)
 
+    barElement._texts.mobName:hide()
     barElement._texts.mobName:right_justified(false)
     barElement._texts.mobName:pos(x - padding, y + ((barHeight + (padding * 2)) / 2) - fontSize + mobTextStrokeWidth)
     barElement._texts.mobName:right_justified(true)
+    barElement._texts.mobName:show()
 
+    barElement._texts.mobHealth:hide()
     barElement._texts.mobHealth:right_justified(false)
     barElement._texts.mobHealth:pos(x + barWidth + padding, y + ((barHeight + (padding * 2)) / 2) - fontSize + mobTextStrokeWidth)
     barElement._texts.mobHealth:right_justified(true)
+    barElement._texts.mobHealth:show()
 
     barElement.updateEffectsPositioning()
   end
